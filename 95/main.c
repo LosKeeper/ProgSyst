@@ -28,7 +28,7 @@ noreturn void raler(int syserr, const char *msg, ...) {
 }
 
 pid_t pid_fils;
-int signal_fin = 0;
+volatile sig_atomic_t signal_fin = 0;
 
 void traite(int signum) {
     (void)signum;
@@ -38,7 +38,6 @@ void traite(int signum) {
 void kill_fils(int signum) {
     signal_fin = 1;
     printf("Fin du programme\n");
-    CHK(kill(pid_fils, SIGUSR1));
 }
 
 int main(void) {
@@ -64,5 +63,6 @@ int main(void) {
         }
         unsigned int alarme_pere = alarm(10);
         CHK(wait(&raison));
+        CHK(kill(pid_fils, SIGUSR1));
     }
 }
