@@ -30,7 +30,7 @@ noreturn void raler(int syserr, const char *msg, ...) {
 int main(int argc, char **argv) {
 
     if (argc < 2) {
-        raler(1, "Nombre d'arguments incorrects");
+        raler(0, "Nombre d'arguments incorrects");
     }
 
     int raison;

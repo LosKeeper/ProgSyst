@@ -34,7 +34,7 @@ noreturn void raler(int syserr, const char *msg, ...) {
 int main(int argc, char **argv) {
 
     if (argc != 3) {
-        raler(1, "nombre d'arguments");
+        raler(0, "nombre d'arguments");
     }
 
     int raison;

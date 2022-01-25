@@ -43,9 +43,10 @@ int main(int argc, char **argv) {
     pid_t pid;
     char c;
     int n;
+    int raison;
+    n = lecture(entree, &c);
 
-    while (n = lecture(entree, &c)) {
-        n = lecture(entree, &c);
+    while (n) {
         pid = fork();
 
         switch (pid) {
@@ -55,6 +56,10 @@ int main(int argc, char **argv) {
         case 0:
             n = lecture(entree, &c);
             exit(0);
+
+        default:
+            CHK(wait(&raison));
+            n = lecture(entree, &c);
         }
     }
 
