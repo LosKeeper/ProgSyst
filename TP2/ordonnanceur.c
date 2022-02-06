@@ -24,6 +24,26 @@ noreturn void raler(int syserr, const char *msg, ...) {
     exit(EXIT_FAILURE);
 }
 
+int terminaison = 0;
+
 int main(int argc, char **argv) {
+    if (argc < 3) {
+        raler(0, "arguments");
+    }
     uintmax_t duree_qtum = (uintmax_t)atoi(argv[1]);
+    uintmax_t nb_process = (uintmax_t)argc - 2;
+
+    for (uintmax_t k = 0; k < nb_process; k++) {
+        int raison;
+        switch (fork()) {
+        case -1:
+            raler(1, "fork");
+
+        case 0:
+            while (!terminaison) {
+                sleep(1);
+            }
+            exit(0);
+        }
+    }
 }
