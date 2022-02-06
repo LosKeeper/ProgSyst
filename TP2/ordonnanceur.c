@@ -24,12 +24,26 @@ noreturn void raler(int syserr, const char *msg, ...) {
     exit(EXIT_FAILURE);
 }
 
-int terminaison = 0;
+int stop = 0;
+
+void election(uintmax_t process_id) {
+    printf("SURP - process %ju\n", process_id);
+}
+
+void terminaison(uintmax_t process_id) {
+    printf("TERM - process %ju\n", process_id);
+}
+
+void eviction(uintmax_t process_id) {
+    printf("EVIP - process %ju\n", process_id);
+}
 
 int main(int argc, char **argv) {
+
     if (argc < 3) {
         raler(0, "arguments");
     }
+
     uintmax_t duree_qtum = (uintmax_t)atoi(argv[1]);
     uintmax_t nb_process = (uintmax_t)argc - 2;
 
@@ -40,7 +54,8 @@ int main(int argc, char **argv) {
             raler(1, "fork");
 
         case 0:
-            while (!terminaison) {
+            election(k);
+            while (!stop) {
                 sleep(1);
             }
             exit(0);
