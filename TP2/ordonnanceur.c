@@ -40,7 +40,11 @@ void eviction(intmax_t process_id) {
     printf("EVIP - process %ju\n", process_id);
 }
 
+void process(int temps) { (void)temps; }
+
 int main(int argc, char **argv) {
+
+    int fin = 0;
 
     // Test nb arguments
     if (argc < 3) {
@@ -63,15 +67,28 @@ int main(int argc, char **argv) {
     // Tableau des pid de tous les processus fils
     pid_t *process_id = malloc(sizeof(pid_t) * nb_process);
 
+    // Masques pere et fils (par héritage)
+
     for (intmax_t k = 0; k < nb_process; k++) {
         process_id[k] = fork();
+
         switch (process_id[k]) {
         case -1:
             raler(1, "fork");
 
         case 0:
             pause();
+            process(atoi(argv[k + 2]));
             exit(0);
+        }
+    }
+
+    // Tant que tous les fils ne sont pas finis
+    while (fin == 0) {
+        for (intmax_t k = 0; k < nb_process; k++) {
+            // Mettre prgm k
+            // Attente SIGALARM OU SIGCHLD
+            // Si SIGCHLD -> process k a ne plus considérer
         }
     }
 
