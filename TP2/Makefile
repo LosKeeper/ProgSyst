@@ -16,6 +16,6 @@ all: $(PROG) $(CHRONO)
 
 clean:
 	rm -f $(PROG) $(CHRONO) *.o
-	rm -f *.aux *.log *.out *.pdf
+	rm -f *.aux *.log *.out 
 	rm -f moodle.tgz
 

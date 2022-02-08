@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdnoreturn.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 #define CHK(op)                                                                \
@@ -37,7 +38,7 @@ void election(intmax_t process_id) {
     printf("SURP - process %ju\n", process_id);
 }
 
-void terminaison(intmax_t process_id) {
+void terminaison_print(intmax_t process_id) {
     printf("TERM - process %ju\n", process_id);
 }
 
@@ -80,7 +81,7 @@ void signal_handler(int signum) {
 
 int main(int argc, char **argv) {
 
-    int fin = 0;
+    int nb_process_fini = 0;
 
     // Test nb arguments
     if (argc < 3) {
@@ -104,7 +105,7 @@ int main(int argc, char **argv) {
     pid_t *process_id = malloc(sizeof(pid_t) * nb_process);
 
     // Tableau des codes de retour des processus fils
-    int *terminaison = calloc(1, sizeof(int) * nb_process);
+    int *terminaison = calloc(0, sizeof(int) * nb_process);
 
     // Tableau du nombre de quantums par fils
     int *nb_quantums = malloc(sizeof(int) * nb_process);
@@ -145,10 +146,11 @@ int main(int argc, char **argv) {
     }
 
     // Tant que tous les fils ne sont pas finis
-    while (fin == 0) {
+    while (nb_process_fini < nb_process) {
         for (intmax_t k = 0; k < nb_process; k++) {
             // Si processus k fini alors on le passe
-            if (terminaison[k] == 0) {
+            if (terminaison[k] == 1) {
+                nb_process_fini++;
                 goto process_suivant;
             }
 
@@ -157,6 +159,7 @@ int main(int argc, char **argv) {
 
             // Lancement du processus k
             kill(process_id[k], SIGUSR1);
+            election(process_id[k]);
 
             // Attente SIGALARM OU SIGCHLD
             CHK(sigsuspend(&masque_pere));
@@ -166,10 +169,12 @@ int main(int argc, char **argv) {
                 signal_child = 0;
                 int raison;
                 CHK(wait(&raison));
-                terminaison[k] = 0;
+                terminaison[k] = 1;
+                terminaison_print(process_id[k]);
 
             } else { // Sinon si on a reçu l'alarme
                 kill(process_id[k], SIGUSR2);
+                eviction(process_id[k]);
             }
 
         process_suivant:;
