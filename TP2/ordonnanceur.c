@@ -45,11 +45,15 @@ void eviction(intmax_t process_id) {
     printf("EVIP - process %ju\n", process_id);
 }
 
-void process_fils(sigset_t *masque_usr1) {
+void process_fils(sigset_t *masque_usr1, int *nb_quantums) {
+    if (nb_quantums == 0) {
+        exit(0);
+    }
     CHK(sigsuspend(masque_usr1));
     while (!signal_usr2) {
         sleep(1);
     }
+    nb_quantums--;
     signal_usr2 = 0;
     exit(0);
 }
@@ -102,6 +106,12 @@ int main(int argc, char **argv) {
     // Tableau des codes de retour des processus fils
     int *terminaison = calloc(1, sizeof(int) * nb_process);
 
+    // Tableau du nombre de quantums par fils
+    int *nb_quantums = malloc(sizeof(int) * nb_process);
+    for (int i = 0; i < nb_process; i++) {
+        nb_quantums[i] = atoi(argv[i + 2]);
+    }
+
     // Masques pere et fils (par héritage)
     sigset_t masque_fils, masque_pere;
     CHK(sigemptyset(&masque_fils));
@@ -111,15 +121,15 @@ int main(int argc, char **argv) {
     CHK(sigaddset(&masque_pere, SIGALRM));
 
     // Redirection des signaux
-    struct sigaction usr1, usr2, chld, alarm;
+    struct sigaction usr1, usr2, chld, alarme;
     usr1.sa_handler = signal_handler;
     usr2.sa_handler = signal_handler;
     chld.sa_handler = signal_handler;
-    alarm.sa_handler = signal_handler;
+    alarme.sa_handler = signal_handler;
     CHK(sigaction(SIGUSR1, &usr1, NULL));
     CHK(sigaction(SIGUSR2, &usr2, NULL));
     CHK(sigaction(SIGCHLD, &chld, NULL));
-    CHK(sigaction(SIGALRM, &alarm, NULL));
+    CHK(sigaction(SIGALRM, &alarme, NULL));
 
     for (intmax_t k = 0; k < nb_process; k++) {
         // Liste de tous les pid des process fils
@@ -130,7 +140,7 @@ int main(int argc, char **argv) {
             raler(1, "fork");
 
         case 0:
-            process_fils(&masque_fils);
+            process_fils(&masque_fils, &nb_quantums[k]);
         }
     }
 
