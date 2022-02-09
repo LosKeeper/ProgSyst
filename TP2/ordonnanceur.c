@@ -28,6 +28,8 @@ noreturn void raler(int syserr, const char *msg, ...) {
     exit(EXIT_FAILURE);
 }
 
+volatile sig_atomic_t signal_usr1 = 0;
+
 volatile sig_atomic_t signal_usr2 = 0;
 
 volatile sig_atomic_t signal_child = 0;
@@ -46,12 +48,18 @@ void eviction(intmax_t process_id) {
     printf("EVIP - process %ju\n", process_id);
 }
 
-void process_fils(sigset_t *masque_usr1, int *nb_quantums) {
+void process_fils(sigset_t *masque_usr1, int *nb_quantums, pid_t pid_pere) {
     if (nb_quantums == 0) {
+        // printf("Je suis fini\n");
+        kill(pid_pere, SIGCHLD);
         exit(0);
     }
-    CHK(sigsuspend(masque_usr1));
+    while (!signal_usr1) {
+        CHK(sigsuspend(masque_usr1));
+    }
+    signal_usr1 = 0;
     while (!signal_usr2) {
+        // printf("Je dors ZzZzZzZzzz\n");
         sleep(1);
     }
     nb_quantums--;
@@ -62,7 +70,7 @@ void process_fils(sigset_t *masque_usr1, int *nb_quantums) {
 void signal_handler(int signum) {
     switch (signum) {
     case SIGUSR1:
-
+        signal_usr1 = 1;
         break;
 
     case SIGUSR2:
@@ -74,6 +82,7 @@ void signal_handler(int signum) {
         break;
 
     case SIGALRM:
+        printf("Alarme reçue\n");
         process_to_kill = 1;
         break;
     }
@@ -90,21 +99,17 @@ int main(int argc, char **argv) {
 
     intmax_t nb_process = (intmax_t)argc - 2;
     int duree_qtum = atoi(argv[1]);
+    pid_t pid_pere = getpid();
 
-    // Tests durée quantums et process
+    // Tests durée quantums
     if (duree_qtum < 1) {
         raler(0, "quantum");
-    }
-    for (intmax_t k = 2; k < nb_process + 2; k++) {
-        if (atoi(argv[k]) < 1) {
-            raler(0, "process");
-        }
     }
 
     // Tableau des pid de tous les processus fils
     pid_t *process_id = malloc(sizeof(pid_t) * nb_process);
 
-    // Tableau des codes de retour des processus fils
+    // Tableau de terminaison des processus fils
     int *terminaison = calloc(0, sizeof(int) * nb_process);
 
     // Tableau du nombre de quantums par fils
@@ -113,10 +118,18 @@ int main(int argc, char **argv) {
         nb_quantums[i] = atoi(argv[i + 2]);
     }
 
+    // Test durée des processus
+    for (intmax_t k = 0; k < nb_process; k++) {
+        if (nb_quantums[k] < 1) {
+            raler(0, "process");
+        }
+    }
+
     // Masques pere et fils (par héritage)
     sigset_t masque_fils, masque_pere;
     CHK(sigemptyset(&masque_fils));
     CHK(sigaddset(&masque_fils, SIGUSR1));
+    CHK(sigaddset(&masque_fils, SIGUSR2));
     CHK(sigemptyset(&masque_pere));
     CHK(sigaddset(&masque_pere, SIGCHLD));
     CHK(sigaddset(&masque_pere, SIGALRM));
@@ -141,7 +154,7 @@ int main(int argc, char **argv) {
             raler(1, "fork");
 
         case 0:
-            process_fils(&masque_fils, &nb_quantums[k]);
+            process_fils(&masque_fils, &nb_quantums[k], pid_pere);
         }
     }
 
@@ -150,7 +163,6 @@ int main(int argc, char **argv) {
         for (intmax_t k = 0; k < nb_process; k++) {
             // Si processus k fini alors on le passe
             if (terminaison[k] == 1) {
-                nb_process_fini++;
                 goto process_suivant;
             }
 
@@ -159,22 +171,26 @@ int main(int argc, char **argv) {
 
             // Lancement du processus k
             kill(process_id[k], SIGUSR1);
-            election(process_id[k]);
+            election(k);
 
             // Attente SIGALARM OU SIGCHLD
+            printf("Attente d'un signal SIGCHLD ou SIGALRM\n");
             CHK(sigsuspend(&masque_pere));
 
             // Si SIGCHLD -> process k a ne plus considérer
             if (signal_child == 1) {
                 signal_child = 0;
+                nb_process_fini++;
+                terminaison[k] = 1;
                 int raison;
                 CHK(wait(&raison));
                 terminaison[k] = 1;
-                terminaison_print(process_id[k]);
+                terminaison_print(k);
 
-            } else { // Sinon si on a reçu l'alarme
+            } else if (process_to_kill == 1) { // Sinon si on a reçu l'alarme
+                process_to_kill = 0;
                 kill(process_id[k], SIGUSR2);
-                eviction(process_id[k]);
+                eviction(k);
             }
 
         process_suivant:;
