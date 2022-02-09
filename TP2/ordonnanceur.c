@@ -55,7 +55,7 @@ void process_fils(sigset_t *masque_usr, sigset_t *vide, int *nb_quantums,
                   pid_t pid_pere) {
     (void)masque_usr;
     while (*nb_quantums != 0) {
-        // Démasquer tous les signaux SIGUSR1 ET 2
+        // *Démasquer tous les signaux SIGUSR1 ET 2
         // !CHK(sigprocmask(SIG_SETMASK, vide, NULL));
 
         while (!signal_usr1) {
@@ -68,7 +68,7 @@ void process_fils(sigset_t *masque_usr, sigset_t *vide, int *nb_quantums,
         }
         signal_usr2 = 0;
 
-        // Masquer tous les signaux envoyés par le pére
+        // *Masquer tous les signaux envoyés par le pére
         // !CHK(sigprocmask(SIG_BLOCK, masque_usr, vide));
 
         (*nb_quantums)--;
@@ -212,8 +212,8 @@ int main(int argc, char **argv) {
             // Attente SIGCHLD ou SIGUSR1
             sigsuspend(&vide);
 
-            // Masquage des signaux envoyés par le fils
-            CHK(sigprocmask(SIG_BLOCK, &masque_signaux_fils, NULL));
+            // Masquage des signaux envoyés par le fils et de l'alarme
+            CHK(sigprocmask(SIG_BLOCK, &masque_signaux_fils, &masque_alarme));
 
             // Si SIGCHLD -> process k a ne plus considérer
             if (signal_child == 1) {
