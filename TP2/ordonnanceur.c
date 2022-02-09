@@ -176,11 +176,10 @@ int main(int argc, char **argv) {
 
             // Envoie commande de terminaison au processus
             CHK(kill(process_id[k], SIGUSR2));
+            eviction(k);
 
             // Attente SIGCHLD ou SIGUSR1
             sigsuspend(&masque_pere);
-
-            eviction(k);
 
             // Si SIGCHLD -> process k a ne plus considérer
             if (signal_child == 1) {
@@ -194,7 +193,6 @@ int main(int argc, char **argv) {
 
             } else if (signal_usr1 == 1) { // Si SIGUSR1 alors process non fini
                 signal_usr1 = 0;
-                eviction(k);
             }
 
         process_suivant:;
