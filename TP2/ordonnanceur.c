@@ -49,21 +49,20 @@ void eviction(intmax_t process_id) {
 }
 
 void process_fils(sigset_t *masque_usr1, int *nb_quantums, pid_t pid_pere) {
-    if (nb_quantums == 0) {
-        // printf("Je suis fini\n");
-        kill(pid_pere, SIGCHLD);
-        exit(0);
-    }
     while (!signal_usr1) {
-        CHK(sigsuspend(masque_usr1));
+        sigsuspend(masque_usr1);
     }
     signal_usr1 = 0;
     while (!signal_usr2) {
-        // printf("Je dors ZzZzZzZzzz\n");
         sleep(1);
     }
     nb_quantums--;
     signal_usr2 = 0;
+    if (*nb_quantums == 0) {
+        CHK(kill(pid_pere, SIGCHLD));
+    } else {
+        CHK(kill(pid_pere, SIGUSR1));
+    }
     exit(0);
 }
 
@@ -82,7 +81,6 @@ void signal_handler(int signum) {
         break;
 
     case SIGALRM:
-        printf("Alarme reçue\n");
         process_to_kill = 1;
         break;
     }
@@ -128,11 +126,11 @@ int main(int argc, char **argv) {
     // Masques pere et fils (par héritage)
     sigset_t masque_fils, masque_pere;
     CHK(sigemptyset(&masque_fils));
-    CHK(sigaddset(&masque_fils, SIGUSR1));
-    CHK(sigaddset(&masque_fils, SIGUSR2));
+    // CHK(sigaddset(&masque_fils, SIGUSR1));
+    // CHK(sigaddset(&masque_fils, SIGUSR2));
     CHK(sigemptyset(&masque_pere));
-    CHK(sigaddset(&masque_pere, SIGCHLD));
-    CHK(sigaddset(&masque_pere, SIGALRM));
+    // CHK(sigaddset(&masque_pere, SIGCHLD));
+    // CHK(sigaddset(&masque_pere, SIGALRM));
 
     // Redirection des signaux
     struct sigaction usr1, usr2, chld, alarme;
@@ -170,12 +168,19 @@ int main(int argc, char **argv) {
             alarm(duree_qtum);
 
             // Lancement du processus k
-            kill(process_id[k], SIGUSR1);
+            CHK(kill(process_id[k], SIGUSR1));
             election(k);
 
-            // Attente SIGALARM OU SIGCHLD
-            printf("Attente d'un signal SIGCHLD ou SIGALRM\n");
-            CHK(sigsuspend(&masque_pere));
+            // Attente SIGALARM
+            sigsuspend(&masque_pere);
+
+            // Envoie commande de terminaison au processus
+            CHK(kill(process_id[k], SIGUSR2));
+
+            // Attente SIGCHLD ou SIGUSR1
+            sigsuspend(&masque_pere);
+
+            eviction(k);
 
             // Si SIGCHLD -> process k a ne plus considérer
             if (signal_child == 1) {
@@ -187,9 +192,8 @@ int main(int argc, char **argv) {
                 terminaison[k] = 1;
                 terminaison_print(k);
 
-            } else if (process_to_kill == 1) { // Sinon si on a reçu l'alarme
-                process_to_kill = 0;
-                kill(process_id[k], SIGUSR2);
+            } else if (signal_usr1 == 1) { // Si SIGUSR1 alors process non fini
+                signal_usr1 = 0;
                 eviction(k);
             }
 
