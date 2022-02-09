@@ -38,32 +38,39 @@ volatile sig_atomic_t process_to_kill = 0;
 
 void election(intmax_t process_id) {
     printf("SURP - process %ju\n", process_id);
+    fflush(stdout);
 }
 
 void terminaison_print(intmax_t process_id) {
     printf("TERM - process %ju\n", process_id);
+    fflush(stdout);
 }
 
 void eviction(intmax_t process_id) {
     printf("EVIP - process %ju\n", process_id);
+    fflush(stdout);
 }
 
 void process_fils(sigset_t *masque_usr1, int *nb_quantums, pid_t pid_pere) {
-    while (!signal_usr1) {
-        sigsuspend(masque_usr1);
+    while (*nb_quantums != 0) {
+        while (!signal_usr1) {
+            sigsuspend(masque_usr1);
+        }
+        signal_usr1 = 0;
+        while (!signal_usr2) {
+            // Masquer tous les signaux
+            sleep(1);
+            // Démasquer tout les signaux
+        }
+        (*nb_quantums)--;
+        signal_usr2 = 0;
+        if (*nb_quantums == 0) {
+            CHK(kill(pid_pere, SIGCHLD));
+            exit(0);
+        } else {
+            CHK(kill(pid_pere, SIGUSR1));
+        }
     }
-    signal_usr1 = 0;
-    while (!signal_usr2) {
-        sleep(1);
-    }
-    nb_quantums--;
-    signal_usr2 = 0;
-    if (*nb_quantums == 0) {
-        CHK(kill(pid_pere, SIGCHLD));
-    } else {
-        CHK(kill(pid_pere, SIGUSR1));
-    }
-    exit(0);
 }
 
 void signal_handler(int signum) {
@@ -172,7 +179,9 @@ int main(int argc, char **argv) {
             election(k);
 
             // Attente SIGALARM
+            // Démasquer alarme
             sigsuspend(&masque_pere);
+            // Masquer alarme
 
             // Envoie commande de terminaison au processus
             CHK(kill(process_id[k], SIGUSR2));
