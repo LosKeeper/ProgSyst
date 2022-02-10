@@ -83,7 +83,7 @@ void process_fils(sigset_t *masque_usr, sigset_t *vide, int *nb_quantums,
         signal_usr2 = 0;
 
         if (*nb_quantums == 1) {
-            exit(0);
+            return;
         } else {
             (*nb_quantums)--;
             CHK(kill(pid_pere, SIGUSR1));
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
         raler(0, "arguments");
     }
 
-    int nb_process = (int)argc - 2;
+    int nb_process = argc - 2;
     int duree_qtum = atoi(argv[1]);
     pid_t pid_pere = getpid();
 
@@ -162,9 +162,17 @@ int main(int argc, char **argv) {
     // Redirection des signaux
     struct sigaction usr1, usr2, chld, alarme;
     usr1.sa_handler = signal_handler;
+    usr1.sa_flags = 0;
+    CHK(sigemptyset(&usr1.sa_mask));
     usr2.sa_handler = signal_handler;
+    usr2.sa_flags = 0;
+    CHK(sigemptyset(&usr2.sa_mask));
     chld.sa_handler = signal_handler;
+    chld.sa_flags = 0;
+    CHK(sigemptyset(&chld.sa_mask));
     alarme.sa_handler = signal_handler;
+    alarme.sa_flags = 0;
+    CHK(sigemptyset(&alarme.sa_mask));
     CHK(sigaction(SIGUSR1, &usr1, NULL));
     CHK(sigaction(SIGUSR2, &usr2, NULL));
     CHK(sigaction(SIGCHLD, &chld, NULL));
@@ -181,6 +189,9 @@ int main(int argc, char **argv) {
         case 0:
             // Sous-prgm processus fils
             process_fils(&masque_fils, &vide, &nb_quantums[k], pid_pere);
+            free(process_id);
+            free(nb_quantums);
+            exit(0);
         }
     }
 
