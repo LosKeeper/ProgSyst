@@ -29,14 +29,9 @@ noreturn void raler(int syserr, const char *msg, ...) {
     exit(EXIT_FAILURE);
 }
 
+// Varibales globales utilisées pour les signaux
 volatile sig_atomic_t signal_usr1 = 0;
-
 volatile sig_atomic_t signal_usr2 = 0;
-
-volatile sig_atomic_t signal_child = 0;
-
-volatile sig_atomic_t signal_alarme = 0;
-
 volatile sig_atomic_t signal_pere = 0;
 
 void election(int process_id) {
@@ -65,23 +60,30 @@ int enregistrer_terminaison(pid_t *tableau_pid, pid_t pid_traiter,
     return -1;
 }
 
-void process_fils(sigset_t *masque_usr, sigset_t *vide, int *nb_quantums,
-                  pid_t pid_pere) {
-    (void)masque_usr;
+void process_fils(sigset_t *masque_fils, sigset_t *vide, int *nb_quantums,
+                  pid_t pid_pere, int k) {
     while (*nb_quantums != 0) {
-        // *Masquer tous les signaux envoyés par le pére
-        // !CHK(sigprocmask(SIG_BLOCK, masque_usr, vide));
 
+        // Attente du signal SIGSUR1 envoyée par le père
         while (!signal_usr1) {
             sigsuspend(vide);
+            if (errno != EINTR) {
+                raler(1, "sigsuspend");
+            }
         }
+        election(k);
         signal_usr1 = 0;
 
+        // Le programme tourne tant que le père n'as pas envoyé le signal
+        // SIGUSR2
         while (!signal_usr2) {
+            CHK(sigprocmask(SIG_UNBLOCK, masque_fils, NULL));
             sleep(1);
+            CHK(sigprocmask(SIG_BLOCK, masque_fils, NULL));
         }
         signal_usr2 = 0;
 
+        // Le programme renvoie son état et sa terminaison s'il a terminé
         if (*nb_quantums == 1) {
             return;
         } else {
@@ -103,12 +105,10 @@ void signal_handler(int signum) {
         break;
 
     case SIGCHLD:
-        signal_child = 1;
         signal_pere = 3;
         break;
 
     case SIGALRM:
-        signal_alarme = 1;
         signal_pere = 1;
         break;
     }
@@ -116,13 +116,12 @@ void signal_handler(int signum) {
 
 int main(int argc, char **argv) {
 
-    int nb_process_fini = 0;
-
     // Test nb arguments
     if (argc < 3) {
         raler(0, "arguments");
     }
 
+    int nb_process_fini = 0;
     int nb_process = argc - 2;
     int duree_qtum = atoi(argv[1]);
     pid_t pid_pere = getpid();
@@ -148,14 +147,14 @@ int main(int argc, char **argv) {
         }
     }
 
-    // Masques pere et fils (par héritage)
+    // Masques des signaux envoyés par le fils et masque vide
     sigset_t vide, masque_signaux_fils, masque_fils;
     CHK(sigemptyset(&vide));
     CHK(sigemptyset(&masque_signaux_fils));
+    CHK(sigemptyset(&masque_fils));
     CHK(sigaddset(&masque_signaux_fils, SIGCHLD));
     CHK(sigaddset(&masque_signaux_fils, SIGUSR1));
     CHK(sigaddset(&masque_signaux_fils, SIGALRM));
-    CHK(sigemptyset(&masque_signaux_fils));
     CHK(sigaddset(&masque_fils, SIGUSR1));
     CHK(sigaddset(&masque_fils, SIGUSR2));
 
@@ -188,7 +187,7 @@ int main(int argc, char **argv) {
 
         case 0:
             // Sous-prgm processus fils
-            process_fils(&masque_fils, &vide, &nb_quantums[k], pid_pere);
+            process_fils(&masque_fils, &vide, &nb_quantums[k], pid_pere, k);
             free(process_id);
             free(nb_quantums);
             exit(0);
@@ -204,6 +203,7 @@ int main(int argc, char **argv) {
     // Itérateur du numéro du processus
     int k = 0;
 
+    // Variables utilisées dans le switch
     int cpt = 0;
     int raison;
     pid_t pid_traiter;
@@ -215,7 +215,6 @@ int main(int argc, char **argv) {
             alarm(duree_qtum);
             // Lancement du processus suivant
             CHK(kill(process_id[k], SIGUSR1));
-            election(k);
         }
 
         // Attente d'un signal
@@ -259,74 +258,6 @@ int main(int argc, char **argv) {
             signal_pere = 0;
             break;
         }
-
-        /*
-                for (int k = 0; k < nb_process; k++) {
-                    // *Faire switch sur les différents signaux ossibles
-           soit SIGUSR1
-                    // *soit SIGCHLD soit SIGALRM
-
-                    // Masquage des signaux envoyés par le fils
-                    CHK(sigprocmask(SIG_BLOCK, &masque_signaux_fils,
-           &vide));
-
-                    // Si processus k fini alors on le passe
-                    if (process_id[k] == 0) {
-                        goto process_suivant;
-                    }
-
-                    // Démasquer alarme
-                    CHK(sigprocmask(SIG_SETMASK, &vide, NULL));
-
-                    // On s'assure que l'ancienne alarme soir terminée
-                    while (alarm(0) != 0) {
-                    }
-
-                    // Démarrage de l'alarme sur la duré d'un quantum
-                    alarm(duree_qtum);
-
-                    // Lancement du processus k
-                    CHK(kill(process_id[k], SIGUSR1));
-                    election(k);
-
-                    // Attente SIGALARM
-                    while (!signal_alarme) {
-                        sigsuspend(&vide); // !Masque et démasque tout seul
-                    }
-                    signal_alarme = 0;
-
-                    // Masquer alarme
-                    CHK(sigprocmask(SIG_BLOCK, &masque_alarme, &vide));
-
-                    // Démasquage des signaux envoyés par le fils
-                    CHK(sigprocmask(SIG_SETMASK, &vide, NULL));
-
-                    // Envoie commande de terminaison au processus
-                    CHK(kill(process_id[k], SIGUSR2));
-
-                    // Attente SIGCHLD ou SIGUSR1
-                    sigsuspend(&vide);
-
-                    // Masquage des signaux envoyés par le fils et de
-           l'alarme CHK(sigprocmask(SIG_BLOCK, &masque_signaux_fils,
-           &masque_alarme));
-
-                    // Si SIGCHLD -> process k a ne plus considérer
-                    if (signal_child == 1) {
-                        eviction(k);
-                        signal_child = 0;
-                        nb_process_fini++;
-                        int raison;
-                        CHK(wait(&raison));
-                        enregistrer_terminaison(process_id, raison,
-           nb_process); terminaison_print(k);
-
-                    } else if (signal_usr1 == 1) { // Si SIGUSR1 alors
-           process non fini eviction(k); signal_usr1 = 0;
-                    }
-
-                process_suivant:;
-                }*/
     }
     free(process_id);
     free(nb_quantums);
