@@ -34,21 +34,46 @@ volatile sig_atomic_t signal_usr1 = 0;
 volatile sig_atomic_t signal_usr2 = 0;
 volatile sig_atomic_t signal_pere = 0;
 
+// Fonctions d'affichage sur la sortie standard
 void election(int process_id) {
     printf("SURP - process %d\n", process_id);
     fflush(stdout);
 }
-
 void terminaison_print(int process_id) {
     printf("TERM - process %d\n", process_id);
     fflush(stdout);
 }
-
 void eviction(int process_id) {
     printf("EVIP - process %d\n", process_id);
     fflush(stdout);
 }
 
+/**
+ * @brief Fonction modifiant l'index du prochain processus à élire
+ * @param tableau_pid tableau de tous les pid des fils
+ * @param index index du tableau qui prendra l'index du procahin processus à
+ * élire
+ * @param nb_process nombre total de processus fils
+ * */
+void prochain_processus(pid_t *tableau_pid, int *index, int nb_process) {
+
+    // Compteur permetant de ne pas boucler indéfiniment
+    int cpt = 0;
+
+    do {
+        cpt++;
+        *index = (*index + 1) % nb_process;
+    } while (tableau_pid[*index] == 0 && cpt < nb_process);
+}
+
+/**
+ * @brief Fonction permettant d'enregistrer la terminaison d'un sous-processus
+ * @param tableau_pid tableau contenant tous les pid des processus fils
+ * @param pid_traiter pid du processus fils fini
+ * @param nb_process nombre total de processus fils
+ * @return Renvoie l'index du processus fini et remlpace son pid par 0 dans le
+ * tableau des pid ou -1 en cas d'échec
+ * */
 int enregistrer_terminaison(pid_t *tableau_pid, pid_t pid_traiter,
                             int nb_process) {
     for (int k = 0; k < nb_process; k++) {
@@ -60,6 +85,16 @@ int enregistrer_terminaison(pid_t *tableau_pid, pid_t pid_traiter,
     return -1;
 }
 
+/**
+ * @brief Fonction executée par les processus fils
+ * @param masque_fils masque des différents signaux pouvants être reçu par le
+ * precessus fils
+ * @param vide masque vide utilisé pour l'attente d'un signal
+ * @param nb_quantums nombre de quantums restants devant etre réalisés par le
+ * processus
+ * @param pid_pere pid du père du processus fils
+ * @param k numéro du processus fils
+ * */
 void process_fils(sigset_t *masque_fils, sigset_t *vide, int *nb_quantums,
                   pid_t pid_pere, int k) {
     while (*nb_quantums != 0) {
@@ -77,8 +112,12 @@ void process_fils(sigset_t *masque_fils, sigset_t *vide, int *nb_quantums,
         // Le programme tourne tant que le père n'as pas envoyé le signal
         // SIGUSR2
         while (!signal_usr2) {
+            // On masque les signaux
             CHK(sigprocmask(SIG_UNBLOCK, masque_fils, NULL));
+
             sleep(1);
+
+            // On démasque les signaux
             CHK(sigprocmask(SIG_BLOCK, masque_fils, NULL));
         }
         signal_usr2 = 0;
@@ -93,6 +132,11 @@ void process_fils(sigset_t *masque_fils, sigset_t *vide, int *nb_quantums,
     }
 }
 
+/**
+ * @brief Fonction executée lors de la reception d'un signal qui va modifier des
+ * varaibles globales
+ * @param signum numéro du signal reçu
+ * */
 void signal_handler(int signum) {
     switch (signum) {
     case SIGUSR1:
@@ -147,14 +191,14 @@ int main(int argc, char **argv) {
         }
     }
 
-    // Masques des signaux envoyés par le fils et masque vide
-    sigset_t vide, masque_signaux_fils, masque_fils;
+    // Masques des signaux envoyés par le fils, par le père et masque vide
+    sigset_t vide, masque_pere, masque_fils;
     CHK(sigemptyset(&vide));
-    CHK(sigemptyset(&masque_signaux_fils));
+    CHK(sigemptyset(&masque_pere));
     CHK(sigemptyset(&masque_fils));
-    CHK(sigaddset(&masque_signaux_fils, SIGCHLD));
-    CHK(sigaddset(&masque_signaux_fils, SIGUSR1));
-    CHK(sigaddset(&masque_signaux_fils, SIGALRM));
+    CHK(sigaddset(&masque_pere, SIGCHLD));
+    CHK(sigaddset(&masque_pere, SIGUSR1));
+    CHK(sigaddset(&masque_pere, SIGALRM));
     CHK(sigaddset(&masque_fils, SIGUSR1));
     CHK(sigaddset(&masque_fils, SIGUSR2));
 
@@ -177,8 +221,9 @@ int main(int argc, char **argv) {
     CHK(sigaction(SIGCHLD, &chld, NULL));
     CHK(sigaction(SIGALRM, &alarme, NULL));
 
+    // Génération de tous les processus fils
     for (int k = 0; k < nb_process; k++) {
-        // Liste de tous les pid des process fils
+        // Tableau de tous les pid des process fils
         process_id[k] = fork();
 
         switch (process_id[k]) {
@@ -188,14 +233,17 @@ int main(int argc, char **argv) {
         case 0:
             // Sous-prgm processus fils
             process_fils(&masque_fils, &vide, &nb_quantums[k], pid_pere, k);
+
+            // Libération de la mémoire occupée par les tableaux
             free(process_id);
             free(nb_quantums);
+
             exit(0);
         }
     }
 
     // Masquage des signaux envoyés par le fils
-    CHK(sigprocmask(SIG_BLOCK, &masque_signaux_fils, &vide));
+    CHK(sigprocmask(SIG_BLOCK, &masque_pere, &vide));
 
     // Démarage de la première alarme
     alarm(duree_qtum);
@@ -204,16 +252,15 @@ int main(int argc, char **argv) {
     int k = 0;
 
     // Variables utilisées dans le switch
-    int cpt = 0;
     int raison;
     pid_t pid_traiter;
 
     // Tant que tous les fils ne sont pas finis
     while (nb_process_fini < nb_process) {
 
+        // Démarrage de l'alarme et élection du prochain procesus
         if (signal_pere == 0) {
             alarm(duree_qtum);
-            // Lancement du processus suivant
             CHK(kill(process_id[k], SIGUSR1));
         }
 
@@ -224,42 +271,47 @@ int main(int argc, char **argv) {
         }
 
         switch (signal_pere) {
-        case 1:
+        case 1: // Reception d'un SIGALRM
+
             // Envoie commande de terminaison au processus
             CHK(kill(process_id[k], SIGUSR2));
             break;
 
-        case 2:
+        case 2: // Reception d'un SIGUSR1
+
             eviction(k);
-            cpt = 0;
-            do {
-                cpt++;
-                k = (k + 1) % nb_process;
-            } while (process_id[k] == 0 && cpt < nb_process);
+
+            // Recherche du prochain processus à élire
+            prochain_processus(process_id, &k, nb_process);
             signal_pere = 0;
             break;
 
-        case 3:
+        case 3: // Reception d'un SIGCHLD
+
             eviction(k);
-            nb_process_fini++;
+
+            // Récupération du pid du processus fini et enregistrement de sa
+            // terminaison
             pid_traiter = wait(&raison);
             CHK(pid_traiter);
+            nb_process_fini++;
             int index =
                 enregistrer_terminaison(process_id, pid_traiter, nb_process);
             if (index == -1) {
-                raler(0, "pid does not exist");
+                raler(0, "Le pid n'existe pas");
             }
             terminaison_print(index);
-            cpt = 0;
-            do {
-                cpt++;
-                k = (k + 1) % nb_process;
-            } while (process_id[k] == 0 && cpt < nb_process);
+
+            // Recherche du prochain processus à élire
+            prochain_processus(process_id, &k, nb_process);
             signal_pere = 0;
             break;
         }
     }
+
+    // Libération de la mémoire occupée par les tableaux
     free(process_id);
     free(nb_quantums);
+
     return 0;
 }
