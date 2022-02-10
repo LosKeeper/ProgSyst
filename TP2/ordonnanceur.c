@@ -193,6 +193,10 @@ int main(int argc, char **argv) {
     // Itérateur du numéro du processus
     int k = 0;
 
+    int cpt = 0;
+    int raison;
+    pid_t pid_traiter;
+
     // Tant que tous les fils ne sont pas finis
     while (nb_process_fini < nb_process) {
 
@@ -217,7 +221,7 @@ int main(int argc, char **argv) {
 
         case 2:
             eviction(k);
-            int cpt = 0;
+            cpt = 0;
             do {
                 cpt++;
                 k = (k + 1) % nb_process;
@@ -228,8 +232,7 @@ int main(int argc, char **argv) {
         case 3:
             eviction(k);
             nb_process_fini++;
-            int raison;
-            pid_t pid_traiter = wait(&raison);
+            pid_traiter = wait(&raison);
             CHK(pid_traiter);
             int index =
                 enregistrer_terminaison(process_id, pid_traiter, nb_process);
@@ -237,7 +240,7 @@ int main(int argc, char **argv) {
                 raler(0, "pid does not exist");
             }
             terminaison_print(index);
-            int cpt = 0;
+            cpt = 0;
             do {
                 cpt++;
                 k = (k + 1) % nb_process;
