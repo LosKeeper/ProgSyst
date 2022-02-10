@@ -1,5 +1,5 @@
 # Programmation Système
-## [Cours]((https://pdagog.gitlab.io/ens/cours-ps.pdf))
+## [Cours](https://pdagog.gitlab.io/ens/cours-ps.pdf)
 Utilisation de primitives systèmes en C
 
 - Gestion des fichiers
