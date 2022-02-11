@@ -68,7 +68,8 @@ void prochain_processus(pid_t *tableau_pid, int *index, int nb_process) {
 
 /**
  * @brief Fonction permettant d'enregistrer la terminaison d'un sous-processus
- * @param tableau_pid tableau contenant tous les pid des processus fils
+ * @param tableau_pid tableau contenant tous les pid des processus fils ou 0 si
+ * le proecssus est terminé
  * @param pid_traiter pid du processus fils fini
  * @param nb_process nombre total de processus fils
  * @return Renvoie l'index du processus fini et remlpace son pid par 0 dans le
