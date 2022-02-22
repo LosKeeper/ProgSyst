@@ -17,4 +17,5 @@ clean:
 	rm -f $(PROG) *.o
 	rm -f *.aux *.log *.out
 	rm -f moodle.tgz
+	rm -f STA_*
 
