@@ -35,7 +35,12 @@ Pour l'ensemble des programmes, on utilisera un ensmeble de macros contenues dan
     - Exercice 9.7 : ecriture de la date dans un fichier lors de la reception de signaux
     - Exercice 9.10 : simulation coupleur série avec signaux
 
+- Gestion des tubes :
+    - Exercice 8.1 : programme recopiant l'entrée standard sur le sortie standard avec utilisation d'un tube
+    - Exercice 8.4 : lancement d'une commande avec un pipe
+
 - TP : 
     - [TP n°1](https://moodle.unistra.fr/pluginfile.php/1010991/mod_resource/content/3/tp1.pdf) : fonction comparant 2 fichiers
     - [TP n°2](https://moodle.unistra.fr/pluginfile.php/1087930/mod_resource/content/3/tp2.pdf) : simulation de l'ordonnancement des processus sur un monoprocessrur
+    - [TP n°3](https://moodle.unistra.fr/pluginfile.php/1109556/mod_resource/content/1/tp3.pdf) : simulation d'un réseau ethernet
     - TP noté : réalisation d'un shell
