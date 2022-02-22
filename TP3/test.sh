@@ -219,7 +219,7 @@ test_4()
 {
     echo -n "Test 4 - test mémoire..............................."
 
-    [ `uname` == "Darwin" ] && echo "valgrind not available on OSX, skip this test" && return 1
+    [ `uname` = "Darwin" ] && echo "valgrind not available on OSX, skip this test" && return 1
     
     rm -f STA_1 STA_2 STA_3 STA_4
     ./trame 1 2 aaaa ; ./trame 2 3 bbbb ; ./trame 3 4 cccc
