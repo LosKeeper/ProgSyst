@@ -1,7 +1,11 @@
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdnoreturn.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 #define MAXSTA 10
 #define PAYLOAD_SIZE 4
@@ -64,7 +68,28 @@ int main(int argc, char **argv) {
                 CHK(close(tab_pipe[i][1]));
             }
             CHK(close(tab_pipe[k][1]));
-            exit(0);
+
+            // Ouverture de son fichier STA_x
+            int sta;
+            CHK(sta = open(strcat("STA_", k), O_RDONLY));
+
+            // Réupération d'un seul message complet (destination et payload)
+            // qui correspond a une seule ligne
+            char trame[2 * PAYLOAD_SIZE];
+
+            //* Tant que tete de lecture pas a la fin du fichier
+            CHK(read(sta, trame, 2 * PAYLOAD_SIZE));
+
+            // Récupération de l'adresse de destination
+            //! Lire dernier octet
+
+            // Récupération du payload
+            //! Lire les 4 permiers octets
+
+            //! Ecrire sur le pipe
+
+            //* Fin tant que
+            exit(EXIT_SUCCESS);
         }
     }
 
