@@ -9,6 +9,7 @@
 #include <unistd.h>
 #define MAXSTA 10
 #define PAYLOAD_SIZE 4
+#define TRAME_SIZE 2 * PAYLOAD_SIZE
 
 #define CHK(op)                                                                \
     do {                                                                       \
@@ -29,20 +30,29 @@ noreturn void raler(int syserr, const char *msg, ...) {
 
     exit(EXIT_FAILURE);
 }
+// Structure utilisée pour décomposer une trame
 typedef struct trame_t {
     int destination;
     char payload[PAYLOAD_SIZE];
 } trame_t;
 
+/**
+ * @brief Fonction permettant de récupérer l'adresse de destination et le
+ *message a transmettre à partir d'une trame
+ * @param buffer correspondant à la trame brute
+ * @return Une structure trame_t contenant le trame décomposée
+ **/
 trame_t read_trame(char *buffer) {
+
     trame_t trame;
+
     // Récupération de l'adresse de destination
     // Lecture du permier octet
     trame.destination = (int)buffer[0];
 
     // Récupération du payload
     // Lecture des 4 derniers octets
-    for (int z = PAYLOAD_SIZE; z < 2 * PAYLOAD_SIZE; z++) {
+    for (int z = PAYLOAD_SIZE; z < TRAME_SIZE; z++) {
         trame.payload[z - PAYLOAD_SIZE] = buffer[z];
     }
     trame.payload[PAYLOAD_SIZE] = '\0';
@@ -85,11 +95,11 @@ int main(int argc, char **argv) {
         case 0:
             // Fermeture des tubes non nécessaires pour le fils
             CHK(close(tab_pipe[0][0]));
+            CHK(close(tab_pipe[k][1]));
             for (int i = 1; i < k; i++) {
                 CHK(close(tab_pipe[i][0]));
                 CHK(close(tab_pipe[i][1]));
             }
-            CHK(close(tab_pipe[k][1]));
             for (int j = k + 1; j < nb_sta + 1; j++) {
                 CHK(close(tab_pipe[j][0]));
                 CHK(close(tab_pipe[j][1]));
@@ -101,19 +111,32 @@ int main(int argc, char **argv) {
             sprintf(str, "STA_%d", k);
             CHK(sta = open(str, O_RDONLY));
 
-            // Réupération d'un seul message complet (destination et payload)
-            // qui correspond a une seule ligne
-            char buffer[2 * PAYLOAD_SIZE];
+            // Tant que récpération d'un seul message complet (destination et
+            // payload) qui correspond à une seule ligne
+            char buffer[TRAME_SIZE];
+            while (read(sta, buffer, TRAME_SIZE) > 0) {
 
-            // Tant que tete de lecture pas a la fin du fichier
-            while (read(sta, buffer, 2 * PAYLOAD_SIZE) > 0) {
-
-                trame_t trame = read_trame(buffer);
-                printf("DESTINATION : %d et PAYLOAD : %s\n", trame.destination,
-                       trame.payload);
-
-                //! Ecrire sur le pipe correspondant
+                // Ecriture sur le commutateur
+                CHK(write(tab_pipe[0][1], buffer, TRAME_SIZE));
+                CHK(write(tab_pipe[0][1], &str[4], 1));
             }
+            CHK(close(tab_pipe[0][1]));
+
+            //! Attente de message
+            sleep(1);
+
+            // Lecture de la trame reçue
+            while (read(tab_pipe[k][0], buffer, TRAME_SIZE)) {
+                trame_t trame;
+                trame = read_trame(buffer);
+                char source;
+                CHK(read(tab_pipe[k][0], &source, 1));
+                printf("%d - %c - %d - %s\n", k, source, trame.destination,
+                       trame.payload);
+                fflush(stdout);
+            }
+            CHK(close(tab_pipe[k][0]));
+
             exit(EXIT_SUCCESS);
         }
     }
@@ -122,6 +145,50 @@ int main(int argc, char **argv) {
     CHK(close(tab_pipe[0][1]));
     for (int j = 1; j < nb_sta + 1; j++) {
         CHK(close(tab_pipe[j][0]));
+    }
+
+    // Lecture du commutateur
+    char buffer[TRAME_SIZE];
+    while (read(tab_pipe[0][0], buffer, TRAME_SIZE) > 0) {
+
+        // Decomposition trame
+        trame_t trame;
+        trame = read_trame(buffer);
+
+        // Récupération de l'adresse de l'emetteur
+        char source;
+        CHK(read(tab_pipe[0][0], &source, 1));
+
+        // Vérification de l'existance de la station de destination
+        if (trame.destination < nb_sta + 1) {
+
+            // Ecriture sur le BON commutateur
+            CHK(write(tab_pipe[trame.destination][1], buffer, TRAME_SIZE));
+
+            // Ecriture de l'emetteur du message dans le pipe
+            CHK(write(tab_pipe[trame.destination][1], &source, 1));
+
+        } else {
+
+            // Diffusion sur toutes les stations
+            for (int i = 1; i < (int)source; i++) {
+
+                // Ecriture sur le commutateur
+                CHK(write(tab_pipe[i][1], buffer, TRAME_SIZE));
+
+                // Ecriture de l'emetteur du message dans le pipe
+                CHK(write(tab_pipe[i][1], &source, 1));
+            }
+
+            for (int i = (int)source; i < nb_sta + 1; i++) {
+
+                // Ecriture sur le commutateur
+                CHK(write(tab_pipe[i][1], buffer, TRAME_SIZE));
+
+                // Ecriture de l'emetteur du message dans le pipe
+                CHK(write(tab_pipe[i][1], &source, 1));
+            }
+        }
     }
 
     return 0;
