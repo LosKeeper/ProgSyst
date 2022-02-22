@@ -40,6 +40,7 @@ int main(void) {
 
     int tube[2];
     CHK(pipe(tube));
+    int raison;
     switch (fork()) {
 
     case -1:
@@ -48,14 +49,17 @@ int main(void) {
     case 0:
         close(tube[1]);
         copier(tube[0], 1);
-        close(tube[0]);
+        CHK(close(tube[0]));
         exit(0);
 
     default:
         close(tube[0]);
         copier(0, tube[1]);
-        close(tube[1]);
-        CHK(wait(NULL));
+        CHK(close(tube[1]));
+        CHK(wait(&raison));
+        if (!WIFEXITED(raison)) {
+            raler(1, "terminaison fils");
+        }
         exit(0);
     }
 }
