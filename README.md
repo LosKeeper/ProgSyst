@@ -11,7 +11,7 @@ Utilisation de primitives systèmes en C
 
 ## [Exercices](https://pdagog.gitlab.io/ens/exercices.pdf)
 
-Pour l'ensemble des programmes, on utilisera u ensmeble de macros contenues dans le fichier `macro.h` qui nous permettrons de vérifier les valeurs de retour des primitives systèmes.
+Pour l'ensemble des programmes, on utilisera un ensmeble de macros contenues dans le fichier `macro.h` qui nous permettrons de vérifier les valeurs de retour des primitives systèmes.
 
 - Gestion des fichiers :
     - Exercice 5.7 : copie l'entrée standard sur la sortie standard avec fonctions bibliothèques et primitives systèmes et comparaison du temps nécessaire
