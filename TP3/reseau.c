@@ -29,6 +29,26 @@ noreturn void raler(int syserr, const char *msg, ...) {
 
     exit(EXIT_FAILURE);
 }
+typedef struct trame_t {
+    int destination;
+    char payload[PAYLOAD_SIZE];
+} trame_t;
+
+trame_t read_trame(char *buffer) {
+    trame_t trame;
+    // Récupération de l'adresse de destination
+    // Lecture du permier octet
+    trame.destination = (int)buffer[0];
+
+    // Récupération du payload
+    // Lecture des 4 derniers octets
+    for (int z = PAYLOAD_SIZE; z < 2 * PAYLOAD_SIZE; z++) {
+        trame.payload[z - PAYLOAD_SIZE] = buffer[z];
+    }
+    trame.payload[PAYLOAD_SIZE] = '\0';
+
+    return trame;
+}
 
 int main(int argc, char **argv) {
 
@@ -49,11 +69,13 @@ int main(int argc, char **argv) {
     // Génération du tube commun
     CHK(pipe(tab_pipe[0]));
 
+    // Génération des tubes père fils
+    for (int k = 1; k < nb_sta + 1; k++) {
+        CHK(pipe(tab_pipe[k]));
+    }
+
     // Génération des processus fils
     for (int k = 1; k < nb_sta + 1; k++) {
-
-        // Génération des tubes père fils
-        CHK(pipe(tab_pipe[k]));
 
         // Génération des processus fils
         switch (fork()) {
@@ -68,27 +90,30 @@ int main(int argc, char **argv) {
                 CHK(close(tab_pipe[i][1]));
             }
             CHK(close(tab_pipe[k][1]));
+            for (int j = k + 1; j < nb_sta + 1; j++) {
+                CHK(close(tab_pipe[j][0]));
+                CHK(close(tab_pipe[j][1]));
+            }
 
             // Ouverture de son fichier STA_x
             int sta;
-            CHK(sta = open(strcat("STA_", k), O_RDONLY));
+            char str[6];
+            sprintf(str, "STA_%d", k);
+            CHK(sta = open(str, O_RDONLY));
 
             // Réupération d'un seul message complet (destination et payload)
             // qui correspond a une seule ligne
-            char trame[2 * PAYLOAD_SIZE];
+            char buffer[2 * PAYLOAD_SIZE];
 
-            //* Tant que tete de lecture pas a la fin du fichier
-            CHK(read(sta, trame, 2 * PAYLOAD_SIZE));
+            // Tant que tete de lecture pas a la fin du fichier
+            while (read(sta, buffer, 2 * PAYLOAD_SIZE) > 0) {
 
-            // Récupération de l'adresse de destination
-            //! Lire dernier octet
+                trame_t trame = read_trame(buffer);
+                printf("DESTINATION : %d et PAYLOAD : %s\n", trame.destination,
+                       trame.payload);
 
-            // Récupération du payload
-            //! Lire les 4 permiers octets
-
-            //! Ecrire sur le pipe
-
-            //* Fin tant que
+                //! Ecrire sur le pipe correspondant
+            }
             exit(EXIT_SUCCESS);
         }
     }
@@ -99,5 +124,5 @@ int main(int argc, char **argv) {
         CHK(close(tab_pipe[j][0]));
     }
 
-    printf("coucou\n");
+    return 0;
 }
