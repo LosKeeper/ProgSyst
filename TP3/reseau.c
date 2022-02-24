@@ -6,7 +6,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
 #define MAXSTA 10
 #define PAYLOAD_SIZE 4
 #define TRAME_SIZE 2 * PAYLOAD_SIZE
@@ -123,7 +125,7 @@ int main(int argc, char **argv) {
             CHK(close(tab_pipe[0][1]));
 
             //! Attente de message
-            sleep(1);
+            // sleep(1);
 
             // Lecture de la trame reçue
             while (read(tab_pipe[k][0], buffer, TRAME_SIZE)) {
@@ -191,5 +193,21 @@ int main(int argc, char **argv) {
         }
     }
 
+    // Fermeture des tubes restants
+    CHK(close(tab_pipe[0][0]));
+    for (int i = 1; i < nb_sta + 1; i++) {
+        CHK(close(tab_pipe[i][1]));
+    }
+
+    // Lecture code de retour des processus fils
+    int *raison = malloc(sizeof(int) * nb_sta);
+    for (int k = 0; k < nb_sta; k++) {
+        CHK(wait(&raison[k]));
+        if (!WIFEXITED(raison[k])) {
+            raler(1, "erreur fermeture processus fils");
+        }
+    }
+
+    free(raison);
     return 0;
 }
