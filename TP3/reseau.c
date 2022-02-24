@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
             CHK(close(tab_pipe[0][1]));
 
             //! Attente de message
-            // sleep(1);
+            sleep(1);
 
             // Lecture de la trame reçue
             while (read(tab_pipe[k][0], buffer, TRAME_SIZE)) {
@@ -133,9 +133,9 @@ int main(int argc, char **argv) {
                 trame = read_trame(buffer);
                 char source;
                 CHK(read(tab_pipe[k][0], &source, 1));
+                trame.payload[PAYLOAD_SIZE] = '\0';
                 printf("%d - %c - %d - %s\n", k, source, trame.destination,
                        trame.payload);
-                fflush(stdout);
             }
             CHK(close(tab_pipe[k][0]));
 
@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
         CHK(read(tab_pipe[0][0], &source, 1));
 
         // Vérification de l'existance de la station de destination
-        if (trame.destination < nb_sta + 1) {
+        if (trame.destination <= nb_sta && trame.destination > 0) {
 
             // Ecriture sur le BON commutateur
             CHK(write(tab_pipe[trame.destination][1], buffer, TRAME_SIZE));
@@ -173,16 +173,7 @@ int main(int argc, char **argv) {
         } else {
 
             // Diffusion sur toutes les stations
-            for (int i = 1; i < (int)source; i++) {
-
-                // Ecriture sur le commutateur
-                CHK(write(tab_pipe[i][1], buffer, TRAME_SIZE));
-
-                // Ecriture de l'emetteur du message dans le pipe
-                CHK(write(tab_pipe[i][1], &source, 1));
-            }
-
-            for (int i = (int)source; i < nb_sta + 1; i++) {
+            for (int i = 1; i < nb_sta + 1 && i != (int)source; i++) {
 
                 // Ecriture sur le commutateur
                 CHK(write(tab_pipe[i][1], buffer, TRAME_SIZE));
