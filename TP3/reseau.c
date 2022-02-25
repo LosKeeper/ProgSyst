@@ -6,7 +6,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
+
 #define MAXSTA 10
 #define PAYLOAD_SIZE 4
 #define TRAME_SIZE 2 * PAYLOAD_SIZE
@@ -131,9 +133,9 @@ int main(int argc, char **argv) {
                 trame = read_trame(buffer);
                 char source;
                 CHK(read(tab_pipe[k][0], &source, 1));
+                trame.payload[PAYLOAD_SIZE] = '\0';
                 printf("%d - %c - %d - %s\n", k, source, trame.destination,
                        trame.payload);
-                fflush(stdout);
             }
             CHK(close(tab_pipe[k][0]));
 
@@ -158,9 +160,11 @@ int main(int argc, char **argv) {
         // Récupération de l'adresse de l'emetteur
         char source;
         CHK(read(tab_pipe[0][0], &source, 1));
+        int entier_source = 0;
+        sscanf(&source, "%d", &entier_source);
 
         // Vérification de l'existance de la station de destination
-        if (trame.destination < nb_sta + 1) {
+        if (trame.destination <= nb_sta && trame.destination > 0) {
 
             // Ecriture sur le BON commutateur
             CHK(write(tab_pipe[trame.destination][1], buffer, TRAME_SIZE));
@@ -171,7 +175,7 @@ int main(int argc, char **argv) {
         } else {
 
             // Diffusion sur toutes les stations
-            for (int i = 1; i < (int)source; i++) {
+            for (int i = 1; i < nb_sta + 1 && i != entier_source; i++) {
 
                 // Ecriture sur le commutateur
                 CHK(write(tab_pipe[i][1], buffer, TRAME_SIZE));
@@ -179,15 +183,21 @@ int main(int argc, char **argv) {
                 // Ecriture de l'emetteur du message dans le pipe
                 CHK(write(tab_pipe[i][1], &source, 1));
             }
+        }
+    }
 
-            for (int i = (int)source; i < nb_sta + 1; i++) {
+    // Fermeture des tubes restants
+    CHK(close(tab_pipe[0][0]));
+    for (int i = 1; i < nb_sta + 1; i++) {
+        CHK(close(tab_pipe[i][1]));
+    }
 
-                // Ecriture sur le commutateur
-                CHK(write(tab_pipe[i][1], buffer, TRAME_SIZE));
-
-                // Ecriture de l'emetteur du message dans le pipe
-                CHK(write(tab_pipe[i][1], &source, 1));
-            }
+    // Lecture code de retour des processus fils
+    int raison[MAXSTA];
+    for (int k = 0; k < nb_sta; k++) {
+        CHK(wait(&raison[k]));
+        if (!WIFEXITED(raison[k])) {
+            raler(1, "erreur fermeture processus fils");
         }
     }
 
