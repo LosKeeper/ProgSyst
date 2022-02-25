@@ -124,9 +124,6 @@ int main(int argc, char **argv) {
             }
             CHK(close(tab_pipe[0][1]));
 
-            //! Attente de message
-            sleep(1);
-
             // Lecture de la trame reçue
             while (read(tab_pipe[k][0], buffer, TRAME_SIZE)) {
                 trame_t trame;
