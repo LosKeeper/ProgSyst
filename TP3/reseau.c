@@ -33,10 +33,10 @@ noreturn void raler(int syserr, const char *msg, ...) {
     exit(EXIT_FAILURE);
 }
 // Structure utilisée pour décomposer une trame
-typedef struct trame_t {
+struct trame_t {
     int destination;
     char payload[PAYLOAD_SIZE];
-} trame_t;
+};
 
 /**
  * @brief Fonction permettant de récupérer l'adresse de destination et le
@@ -44,16 +44,16 @@ typedef struct trame_t {
  * @param buffer correspondant à la trame brute
  * @return Une structure trame_t contenant le trame décomposée
  **/
-trame_t read_trame(char *buffer) {
+struct trame_t read_trame(char *buffer) {
 
-    trame_t trame;
+    struct trame_t trame;
 
     // Récupération de l'adresse de destination
-    // Lecture du permier octet
+    // Lecture du permier octet du buffer
     trame.destination = (int)buffer[0];
 
     // Récupération du payload
-    // Lecture des 4 derniers octets
+    // Lecture des 4 derniers octets du buffer
     for (int z = PAYLOAD_SIZE; z < TRAME_SIZE; z++) {
         trame.payload[z - PAYLOAD_SIZE] = buffer[z];
     }
@@ -62,6 +62,11 @@ trame_t read_trame(char *buffer) {
     return trame;
 }
 
+/**
+ * Il peut y avoir un blocage redeau lorsque chaque machine écrit sur le tube
+ * commun il peut donc y avoir des conflits sir plusieures machines écrivent en
+ * meme temps sur le tube commun.
+ **/
 int main(int argc, char **argv) {
 
     // Test du nombre d'arguments
@@ -75,7 +80,8 @@ int main(int argc, char **argv) {
         raler(0, "probleme nombre de stations");
     }
 
-    // Tableau de tubes
+    // Tableau de tubes (pas de malloc donc il y aura surement des tubes non
+    // utilisés)
     int tab_pipe[MAXSTA + 1][2];
 
     // Génération du tube commun
@@ -110,7 +116,7 @@ int main(int argc, char **argv) {
             // Ouverture de son fichier STA_x
             int sta;
             char str[6];
-            sprintf(str, "STA_%d", k);
+            CHK(snprintf(str, 6, "STA_%d", k));
             CHK(sta = open(str, O_RDONLY));
 
             // Tant que récpération d'un seul message complet (destination et
@@ -118,22 +124,31 @@ int main(int argc, char **argv) {
             char buffer[TRAME_SIZE];
             while (read(sta, buffer, TRAME_SIZE) > 0) {
 
-                // Ecriture sur le commutateur
+                // Ecriture sur le commutateur de la trame
                 CHK(write(tab_pipe[0][1], buffer, TRAME_SIZE));
+
+                // Ecriture de l'adresse de l'adresse de la machine qui envoie
+                // la trame
                 CHK(write(tab_pipe[0][1], &str[4], 1));
             }
+
+            // Fermeture du tube commun
             CHK(close(tab_pipe[0][1]));
 
             // Lecture de la trame reçue
-            while (read(tab_pipe[k][0], buffer, TRAME_SIZE)) {
-                trame_t trame;
+            struct trame_t trame;
+            char source;
+            int n;
+            while ((n = read(tab_pipe[k][0], buffer, TRAME_SIZE)) > 0) {
                 trame = read_trame(buffer);
-                char source;
                 CHK(read(tab_pipe[k][0], &source, 1));
                 trame.payload[PAYLOAD_SIZE] = '\0';
                 printf("%d - %c - %d - %s\n", k, source, trame.destination,
                        trame.payload);
             }
+            CHK(n);
+
+            // Fermeture du tube de lecture propre aàla station
             CHK(close(tab_pipe[k][0]));
 
             exit(EXIT_SUCCESS);
@@ -147,17 +162,18 @@ int main(int argc, char **argv) {
     }
 
     // Lecture du commutateur
+    struct trame_t trame;
     char buffer[TRAME_SIZE];
-    while (read(tab_pipe[0][0], buffer, TRAME_SIZE) > 0) {
+    int entier_source = 0;
+    char source;
+    int n;
+    while ((n = read(tab_pipe[0][0], buffer, TRAME_SIZE)) > 0) {
 
-        // Decomposition trame
-        trame_t trame;
+        // Décomposition trame
         trame = read_trame(buffer);
 
-        // Récupération de l'adresse de l'emetteur
-        char source;
+        // Récupération de l'adresse de l'emetteur et cast en entier
         CHK(read(tab_pipe[0][0], &source, 1));
-        int entier_source = 0;
         sscanf(&source, "%d", &entier_source);
 
         // Vérification de l'existance de la station de destination
@@ -182,6 +198,7 @@ int main(int argc, char **argv) {
             }
         }
     }
+    CHK(n);
 
     // Fermeture des tubes restants
     CHK(close(tab_pipe[0][0]));
@@ -198,5 +215,5 @@ int main(int argc, char **argv) {
         }
     }
 
-    return 0;
+    exit(EXIT_SUCCESS);
 }
