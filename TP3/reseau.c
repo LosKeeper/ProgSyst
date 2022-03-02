@@ -66,8 +66,8 @@ struct trame_t read_trame(char *buffer) {
 }
 
 /**
- * Il peut y avoir un blocage redeau lorsque chaque machine écrit sur le tube
- * commun il peut donc y avoir des conflits sir plusieures machines écrivent en
+ * Il peut y avoir un blocage reseau lorsque chaque machine écrit sur le tube
+ * commun il peut donc y avoir des conflits si plusieures machines écrivent en
  * meme temps sur le tube commun.
  **/
 int main(int argc, char **argv) {
