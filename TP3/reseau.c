@@ -138,6 +138,7 @@ int main(int argc, char **argv) {
                 trame.source = k;
                 CHK(write(tab_pipe[0][1], &trame, sizeof(trame)));
             }
+            CHK(close(sta));
             CHK(n);
 
             // Fermeture du tube commun
