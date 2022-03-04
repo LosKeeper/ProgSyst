@@ -120,15 +120,17 @@ int main(int argc, char **argv) {
             int sta;
             char str[PATH];
             int m = snprintf(str, PATH, "STA_%d", k);
-            if (m < 0 || m >= PATH)
+            if (m < 0 || m >= PATH) {
                 raler(0, "snprinf");
+            }
             CHK(sta = open(str, O_RDONLY));
 
             // Tant que récpération d'un seul message complet (destination et
             // payload) qui correspond à une seule ligne
+            int n;
             char buffer[TRAME_SIZE];
             struct trame_t trame;
-            while (read(sta, buffer, TRAME_SIZE) > 0) {
+            while ((n = read(sta, buffer, TRAME_SIZE)) > 0) {
 
                 // Décomposition de la trame dans le structure et ajout de
                 // numéro de l'émetteur
@@ -136,12 +138,12 @@ int main(int argc, char **argv) {
                 trame.source = k;
                 CHK(write(tab_pipe[0][1], &trame, sizeof(trame)));
             }
+            CHK(n);
 
             // Fermeture du tube commun
             CHK(close(tab_pipe[0][1]));
 
             // Lecture de la structure reçue
-            int n;
             while ((n = read(tab_pipe[k][0], &trame, sizeof(trame))) > 0) {
                 printf("%d - %d - %d - %s\n", k, trame.source,
                        trame.destination, trame.payload);
